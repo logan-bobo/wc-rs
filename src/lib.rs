@@ -1,7 +1,8 @@
 use core::str;
 use std::error::Error;
 use std::io::{self, Read};
-use std::fs;
+use std::str::Utf8Error;
+use std::{fs, usize};
 
 use clap::Parser;
 
@@ -51,17 +52,23 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     }
 
     if args.count_words  {
-        println!("  {} {}", count_words(&bytes), file_name);
+        let words = count_words(&bytes)?;
+
+        println!("  {} {}", words, file_name);
     }
 
     if args.count_chars {
-        println!("  {} {}", count_chars(&bytes), file_name);
+        let chars = count_chars(&bytes)?;
+
+        println!("  {} {}", chars, file_name);
     }
 
     if is_default_option(&args) {
+        let words = count_words(&bytes)?;
+
         println!("  {} {} {} {}",
             count_lines(&bytes),
-            count_words(&bytes),
+            words,
             bytes.len(),
             file_name
         )
@@ -82,17 +89,17 @@ fn count_lines(bytes: &Vec<u8>) -> usize {
     new_line_count
 }
 
-fn count_words(bytes: &Vec<u8>) -> usize {
+fn count_words(bytes: &Vec<u8>) -> Result<usize, Utf8Error> {
     // we can handle this better
-    let words_as_string: &str = str::from_utf8(bytes).expect("utf-8 error");
+    let words_as_string: &str = str::from_utf8(bytes)?;
 
-    words_as_string.split_ascii_whitespace().count()
+    Ok(words_as_string.split_ascii_whitespace().count())
 }
 
-fn count_chars(bytes: &Vec<u8>) -> usize {
-    let words_as_string: &str = str::from_utf8(bytes).expect("utf-8 error");
+fn count_chars(bytes: &Vec<u8>) -> Result<usize, Utf8Error> {
+    let words_as_string: &str = str::from_utf8(bytes)?;
 
-    words_as_string.chars().count()
+    Ok(words_as_string.chars().count())
 }
 
 fn is_default_option(args: &Args) -> bool {
