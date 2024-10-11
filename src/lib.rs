@@ -1,5 +1,7 @@
 use core::str;
-use std::{fs, error::Error};
+use std::error::Error;
+use std::io::{self, Read};
+use std::fs;
 
 use clap::Parser;
 
@@ -7,45 +9,62 @@ const NEWLINE: u8 = 10;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    #[arg(short = 'c', required = false)]
+    #[arg(short = 'c', required = false, help = "Count the bytes from a file or stdin")]
     pub count_bytes: bool,
 
-    #[arg(short = 'l', required = false)]
+    #[arg(short = 'l', required = false, help = "Count the lines from a file or stdin")]
     pub count_lines: bool,
 
-    #[arg(short = 'w', required = false)]
+    #[arg(short = 'w', required = false, help = "Count the words from a file a stdin")]
     pub count_words: bool,
 
-    #[arg(short = 'm', required = false)]
+    #[arg(short = 'm', required = false, help = "Count the characters from a file or stdin")]
     pub count_chars: bool,
 
-    #[arg(required = true)]
+    #[arg(help = "The path of the file you wish to use, for example ~/file.txt", required = false, default_value = "")]
     pub file_name: String,
 }
 
-pub fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    // What if the file is large? (oom)
-    let bytes = fs::read(&args.file_name)?;
+pub fn run() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
+    let file_name = &args.file_name;
+
+    let bytes: Vec<u8> = if file_name.len() != 0 {
+        fs::read(&args.file_name)?
+    } else {
+        let mut bytes_vect: Vec<u8> = vec![];
+        let data = io::stdin().bytes();
+
+        for byte in data {
+            bytes_vect.push(byte?);
+        }
+
+        bytes_vect
+    };
 
     if args.count_bytes {
-        println!("\t{} {}", &args.file_name, bytes.len());
+        println!("  {} {}", bytes.len(), file_name);
     }
 
     if args.count_lines {
-        let lines = count_lines(&bytes);
-
-        println!("\t{} {}", &args.file_name, lines);
+        println!("  {} {}", count_lines(&bytes), file_name);
     }
 
     if args.count_words  {
-        let words = count_words(&bytes);
-
-        println!("\t{} {}", &args.file_name, words);
+        println!("  {} {}", count_words(&bytes), file_name);
     }
 
     if args.count_chars {
-        let chars = count_chars(&bytes);
-        println!("\t{} {}", &args.file_name, chars)
+        println!("  {} {}", count_chars(&bytes), file_name);
+    }
+
+    if is_default_option(&args) {
+        println!("  {} {} {} {}",
+            count_lines(&bytes),
+            count_words(&bytes),
+            bytes.len(),
+            file_name
+        )
     }
 
     Ok(())
@@ -71,9 +90,17 @@ fn count_words(bytes: &Vec<u8>) -> usize {
 }
 
 fn count_chars(bytes: &Vec<u8>) -> usize {
-    let words_as_string: &str = str::from_utf8(&bytes).expect("utf-8 error");
+    let words_as_string: &str = str::from_utf8(bytes).expect("utf-8 error");
 
     words_as_string.chars().count()
+}
+
+fn is_default_option(args: &Args) -> bool {
+    if !args.count_bytes && !args.count_lines && !args.count_words && !args.count_chars {
+        return true
+    }
+
+    false
 }
 
 #[cfg(test)]
