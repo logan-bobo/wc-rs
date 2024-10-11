@@ -29,9 +29,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let file_name = &args.file_name;
 
-    let bytes: Vec<u8> = if file_name.len() != 0 {
-        fs::read(&args.file_name)?
-    } else {
+    let bytes: Vec<u8> = if file_name.is_empty() {
         let mut bytes_vect: Vec<u8> = vec![];
         let data = io::stdin().bytes();
 
@@ -40,6 +38,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         }
 
         bytes_vect
+    } else {
+        fs::read(&args.file_name)?
     };
 
     if args.count_bytes {
