@@ -98,16 +98,8 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn count_lines(bytes: &Vec<u8>) -> usize {
-    let mut new_line_count = 0;
-
-    for byte in bytes {
-        if *byte == NEWLINE {
-            new_line_count += 1;
-        }
-    }
-
-    new_line_count
+fn count_lines(bytes: &[u8]) -> usize {
+    bytes.iter().filter(|&&byte| byte == NEWLINE).count()
 }
 
 fn count_words(bytes: &[u8]) -> Result<usize, Utf8Error> {
