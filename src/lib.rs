@@ -1,12 +1,10 @@
 use core::str;
 use std::error::Error;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader};
 use std::str::Utf8Error;
 
 use clap::Parser;
-
-const NEWLINE: u8 = 10;
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -46,64 +44,78 @@ pub struct Args {
     pub file_name: String,
 }
 
+#[derive(Debug)]
+struct FileMetaData {
+    lines: usize,
+    chars: usize,
+    bytes: usize,
+    words: usize,
+}
+
+impl FileMetaData {
+    fn new() -> Self {
+        FileMetaData {
+            lines: 0,
+            chars: 0,
+            bytes: 0,
+            words: 0,
+        }
+    }
+}
+
 pub fn run() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let file_name = &args.file_name;
+    let mut metadata = FileMetaData::new();
 
-    let bytes: Vec<u8> = if file_name.is_empty() {
-        let mut bytes_vect: Vec<u8> = vec![];
-        let data = io::stdin().bytes();
-
-        for byte in data {
-            bytes_vect.push(byte?);
-        }
-
-        bytes_vect
+    let mut reader: Box<dyn BufRead> = if file_name.is_empty() {
+        Box::new(BufReader::new(io::stdin()))
     } else {
-        fs::read(&args.file_name)?
+        let f = fs::File::open(&args.file_name)?;
+        Box::new(BufReader::new(f))
     };
 
+    let mut line_buffer = Vec::<u8>::new();
+    loop {
+        line_buffer.clear();
+        let bytes_read = reader.read_until(b'\n', &mut line_buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        metadata.lines += 1;
+        metadata.chars += count_chars(&line_buffer)?;
+        metadata.bytes += bytes_read;
+        metadata.words += count_words(&line_buffer)?;
+    }
+
     if args.count_bytes {
-        println!("  {} {}", bytes.len(), file_name);
+        println!("  {} {}", metadata.bytes, file_name);
     }
 
     if args.count_lines {
-        println!("  {} {}", count_lines(&bytes), file_name);
+        println!("  {} {}", metadata.lines, file_name);
     }
 
     if args.count_words {
-        let words = count_words(&bytes)?;
-
-        println!("  {} {}", words, file_name);
+        println!("  {} {}", metadata.words, file_name);
     }
 
     if args.count_chars {
-        let chars = count_chars(&bytes)?;
-
-        println!("  {} {}", chars, file_name);
+        println!("  {} {}", metadata.chars, file_name);
     }
 
     if is_default_option(&args) {
-        let words = count_words(&bytes)?;
-
         println!(
             "  {} {} {} {}",
-            count_lines(&bytes),
-            words,
-            bytes.len(),
-            file_name
+            metadata.lines, metadata.words, metadata.bytes, file_name
         )
     }
 
     Ok(())
 }
 
-fn count_lines(bytes: &[u8]) -> usize {
-    bytes.iter().filter(|&&byte| byte == NEWLINE).count()
-}
-
 fn count_words(bytes: &[u8]) -> Result<usize, Utf8Error> {
-    // we can handle this better
     let words_as_string: &str = str::from_utf8(bytes)?;
 
     Ok(words_as_string.split_ascii_whitespace().count())
@@ -126,15 +138,6 @@ fn is_default_option(args: &Args) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn count_new_lines_in_file() {
-        // UTF-8 newline as dec is 10
-        let content = vec![10, 10, 10];
-        let expected_lines = 3;
-
-        assert_eq!(expected_lines, count_lines(&content));
-    }
 
     #[test]
     fn count_words_in_file() {
